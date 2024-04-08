@@ -1,0 +1,16 @@
+{
+  "name": "equalizer",
+  "version": "1.0.0",
+  "description": "equalizer",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc"
+  },
+  "keywords": [
+    "typescript",
+    "es6",
+    "equalizer"
+  ],
+  "author": "Huang Jay",
+  "license": "ISC"
+}
