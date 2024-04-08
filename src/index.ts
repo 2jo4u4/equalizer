@@ -1,2 +1,2 @@
-export { AudioContextWithMethod, Equalizer } from './core.ts'
-export { EqualizerUIComponent } from 'ui-component.ts'
+export { AudioContextWithMethod, Equalizer } from './core';
+export { EqualizerUIComponent } from './ui-component';

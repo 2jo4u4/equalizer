@@ -1,3 +1,4 @@
+import { AudioContextWithMethod, Equalizer } from "./core";
 
 /**
  * UI組件
