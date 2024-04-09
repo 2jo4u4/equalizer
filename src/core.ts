@@ -2,9 +2,11 @@
  * 提供濾波器生成及核心物件`AudioContext`
  */
 export class AudioContextWithMethod {
-  constructor(contextOptions) {
+  audioCtx: AudioContext;
+  constructor(contextOptions?: AudioContextOptions) {
     this.audioCtx = new AudioContext(contextOptions);
   }
+
   /**
    * 生成濾波器
    *
@@ -31,7 +33,7 @@ export class AudioContextWithMethod {
    * @param f 頻率
    * @param q 範圍
    */
-  allpass({ f, g, q }) {
+  allpass({ f, g, q }: { f: number; q: number; g: number }) {
     const filter = this.createBiquadFilter();
     filter.type = "allpass";
     filter.frequency.value = f;
@@ -49,7 +51,7 @@ export class AudioContextWithMethod {
    * @param f 頻率
    * @param q 範圍
    */
-  bandpass({ f, g, q }) {
+  bandpass({ f, g, q }: { f: number; q: number; g: number }) {
     const filter = this.createBiquadFilter();
     filter.type = "bandpass";
     filter.frequency.value = f;
@@ -68,7 +70,7 @@ export class AudioContextWithMethod {
    * @param f 頻率
    * @param q 範圍
    */
-  highpass({ f, g, q }) {
+  highpass({ f, g, q }: { f: number; q: number; g: number }) {
     const filter = this.createBiquadFilter();
     filter.type = "highpass";
     filter.frequency.value = f;
@@ -86,7 +88,7 @@ export class AudioContextWithMethod {
    * @param f 頻率
    * @param g 增益
    */
-  highshelf({ f, g, q }) {
+  highshelf({ f, g, q }: { f: number; q: number; g: number }) {
     const filter = this.createBiquadFilter();
     filter.type = "highshelf";
     filter.frequency.value = f;
@@ -105,7 +107,7 @@ export class AudioContextWithMethod {
    * @param f 頻率
    * @param q 範圍
    */
-  lowpass({ f, g, q }) {
+  lowpass({ f, g, q }: { f: number; q: number; g: number }) {
     const filter = this.createBiquadFilter();
     filter.type = "lowpass";
     filter.frequency.value = f;
@@ -123,7 +125,7 @@ export class AudioContextWithMethod {
    * @param f 頻率
    * @param g 增益
    */
-  lowshelf({ f, g, q }) {
+  lowshelf({ f, g, q }: { f: number; q: number; g: number }) {
     const filter = this.createBiquadFilter();
     filter.type = "lowshelf";
     filter.frequency.value = f;
@@ -142,7 +144,7 @@ export class AudioContextWithMethod {
    * @param f 頻率
    * @param q 範圍
    */
-  notch({ f, g, q }) {
+  notch({ f, g, q }: { f: number; q: number; g: number }) {
     const filter = this.createBiquadFilter();
     filter.type = "notch";
     filter.frequency.value = f;
@@ -162,7 +164,7 @@ export class AudioContextWithMethod {
    * @param q 範圍
    * @param g 增益
    */
-  peaking({ f, g, q }) {
+  peaking({ f, g, q }: { f: number; q: number; g: number }) {
     const filter = this.createBiquadFilter();
     filter.type = "peaking";
     filter.frequency.value = f;
@@ -171,39 +173,53 @@ export class AudioContextWithMethod {
     return filter;
   }
 }
+
 /**
-* 等化器，擴充音源或影片
-*
-* @example
-* ```
-* // basic
-* const video = document.createElement("video")
-* const core = new AudioContextWithMethod();
-* const equalizer = new Equalizer(video, core.audioCtx);
-* equalizer.addToQueue(core.peaking(32, 0.7, 1))
-* equalizer
-* .addToQueue(core.peaking(64, 0.7, 1), "example")
-* .addToQueue(core.peaking(128, 0.7, 1), "example2")
-*
-* // 自定義濾波器
-* const filter = core.createBiquadFilter()
-* filter.type = "peaking"
-* equalizer.addToQueue(filter, "example");
-* equalizer.queue.get('example')[0].Q.value = 0.7
-*
-* // 添加完濾波器
-* video.pause()
-* equalizer.stream()
-* video.play()
-* ```
-*/
+ * 等化器，擴充音源或影片
+ *
+ * @example
+ * ```
+ * // basic
+ * const video = document.createElement("video")
+ * const core = new AudioContextWithMethod();
+ * const equalizer = new Equalizer(video, core.audioCtx);
+ * equalizer.addToQueue(core.peaking(32, 0.7, 1))
+ * equalizer
+ * .addToQueue(core.peaking(64, 0.7, 1), "example")
+ * .addToQueue(core.peaking(128, 0.7, 1), "example2")
+ *
+ * // 自定義濾波器
+ * const filter = core.createBiquadFilter()
+ * filter.type = "peaking"
+ * equalizer.addToQueue(filter, "example");
+ * equalizer.queue.get('example')[0].Q.value = 0.7
+ *
+ * // 添加完濾波器
+ * video.pause()
+ * equalizer.stream()
+ * video.play()
+ * ```
+ */
 export class Equalizer {
-  constructor(el, audioCtx) {
+  index: number;
+  audioCtx: AudioContext;
+  media: HTMLMediaElement;
+  /**
+   * create after execute `stream`
+   *
+   * 確保濾波器準備就緒。
+   */
+  source!: MediaElementAudioSourceNode;
+  /** 可命名或自動添加序列引索 */
+  queue: Map<string, [BiquadFilterNode, string]>;
+
+  constructor(el: HTMLMediaElement, audioCtx: AudioContext) {
     this.audioCtx = audioCtx;
     this.media = el;
     this.queue = new Map();
     this.index = 1;
   }
+
   /**
    * 添加至佇列
    * @param filter 濾波器
@@ -211,18 +227,19 @@ export class Equalizer {
    *
    * @returns Equalizer
    */
-  addToQueue(filter, id) {
+  addToQueue(filter: BiquadFilterNode, id?: string) {
     const indexstr = this.index.toString();
     this.queue.set(typeof id === "string" ? id : indexstr, [filter, indexstr]);
     this.index++;
     return this;
   }
+
   /**
    * 串接佇列上的濾波器，推薦串流前先暫停，結束後再播放。
    */
   stream() {
     this.source = this.audioCtx.createMediaElementSource(this.media);
-    let last = this.source;
+    let last: MediaElementAudioSourceNode | BiquadFilterNode = this.source;
     this.queue.forEach(([filter]) => {
       last.connect(filter);
       last = filter;
