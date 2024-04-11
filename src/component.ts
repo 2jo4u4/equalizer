@@ -2,15 +2,6 @@ import { AudioContextWithMethod, Equalizer } from "./core";
 
 /**
  * UI組件
- *
- * @example
- * ```
- * // basic
- * const video = document.createElement("video");
- * const UI = new EqualizerUIComponent(video);
- * UI.addSilder(12, -12, 0, 0.5, {  target: "gain",  fliterType: "peaking",  f: 4700,  q: 0.7,  g: 0,});
- * document.body.append(UI.dashboardEl)
- * ```
  */
 export class EqualizerUIComponent {
   static dashboard() {
@@ -48,8 +39,8 @@ export class EqualizerUIComponent {
   dashboardEl: HTMLDivElement;
   sliderList: { container: HTMLDivElement; input: HTMLInputElement }[];
   constructor(el: HTMLMediaElement, contextOptions?: AudioContextOptions) {
-    this.core = new AudioContextWithMethod(contextOptions);
-    this.equalizer = new Equalizer(el, this.core.audioCtx);
+    this.equalizer = new Equalizer(el, contextOptions);
+    this.core = this.equalizer.audio;
     this.dashboardEl = EqualizerUIComponent.dashboard();
     this.sliderList = [];
     this.stream = this.equalizer.stream.bind(this.equalizer);
@@ -86,16 +77,16 @@ export class EqualizerUIComponent {
       target?: "frequency" | "Q" | "gain";
       addToDashBoard?: boolean;
     } & (
-        | {
+      | {
           filter: BiquadFilterNode;
         }
-        | {
+      | {
           fliterType: BiquadFilterType;
           f?: number;
           q?: number;
           g?: number;
         }
-      )
+    )
   ) {
     const initStr = init.toString(),
       maxStr = max.toString(),
@@ -136,7 +127,7 @@ export class EqualizerUIComponent {
         targetFilter[target].value = newVal;
       });
 
-      this.equalizer.addToQueue(targetFilter);
+      this.equalizer.addFilterToQueue(targetFilter);
     }
 
     const titleText = document.createElement("span"),
@@ -154,5 +145,37 @@ export class EqualizerUIComponent {
       this.dashboardEl.append(container);
     }
     return this;
+  }
+}
+
+export class ComponentForEqualizer {
+  static dashboard() {
+    const dashboard = document.createElement("div");
+    dashboard.style.border = "1px #929292 solid";
+    dashboard.style.margin = "8px";
+    dashboard.style.padding = "8px";
+    dashboard.style.borderRadius = "8px";
+    dashboard.style.background = "#81adff3b";
+    dashboard.style.width = "fit-content";
+    dashboard.style.display = "flex";
+    dashboard.style.gap = "10px";
+    return dashboard;
+  }
+  static sliderInput() {
+    const input = document.createElement("input");
+    input.type = "range";
+    input.style.writingMode = "vertical-lr";
+    input.style.direction = "rtl";
+    input.style.height = "180px";
+    input.style.width = "32px";
+    return input;
+  }
+  static sliderContiner() {
+    const block = document.createElement("div");
+    block.style.display = "flex";
+    block.style.flexDirection = "column";
+    block.style.alignItems = "center";
+    block.style.width = "fit-content";
+    return block;
   }
 }

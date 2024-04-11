@@ -180,70 +180,148 @@ export class AudioContextWithMethod {
  * @example
  * ```
  * // basic
- * const video = document.createElement("video")
- * const core = new AudioContextWithMethod();
- * const equalizer = new Equalizer(video, core.audioCtx);
- * equalizer.addToQueue(core.peaking(32, 0.7, 1))
+ * const equalizer = new Equalizer();
+ * equalizer.addFilterToQueue(equalizer.audio.peaking({ f: 32, q: 0.7, g: 1 }))
  * equalizer
- * .addToQueue(core.peaking(64, 0.7, 1), "example")
- * .addToQueue(core.peaking(128, 0.7, 1), "example2")
+ *     .addFilterToQueue(equalizer.audio.peaking({ f: 64, q: 0.7, g: 1 }), "example")
+ *     .addFilterToQueue(equalizer.audio.peaking({ f: 128, q: 0.7, g: 1 }), "example2")
  *
  * // 自定義濾波器
- * const filter = core.createBiquadFilter()
- * filter.type = "peaking"
- * equalizer.addToQueue(filter, "example");
- * equalizer.queue.get('example')[0].Q.value = 0.7
+ * equalizer.addFilterToQueueByParam('peaking', 4000, 0.7, 0, "example3");
  *
  * // 添加完濾波器
- * video.pause()
- * equalizer.stream()
- * video.play()
+ * equalizer.stream(document.createElement("video"))
  * ```
  */
 export class Equalizer {
+  /** 編號命名 */
   index: number;
+  audio: AudioContextWithMethod;
   audioCtx: AudioContext;
-  media: HTMLMediaElement;
+  /** 可命名或自動添加序列引索 */
+  queue: Map<string, BiquadFilterNode>;
+  get firstNode() {
+    if (this.index === 0) return null;
+    return this.queue.get("1");
+  }
+  get lastNode() {
+    if (this.index === 0) return null;
+    return this.queue.get(this.index.toString());
+  }
+
+  media!: HTMLMediaElement;
   /**
    * create after execute `stream`
    *
    * 確保濾波器準備就緒。
    */
   source!: MediaElementAudioSourceNode;
-  /** 可命名或自動添加序列引索 */
-  queue: Map<string, [BiquadFilterNode, string]>;
+  isStream: boolean;
+  isLife: boolean;
 
-  constructor(el: HTMLMediaElement, audioCtx: AudioContext) {
-    this.audioCtx = audioCtx;
-    this.media = el;
+  constructor(el?: HTMLMediaElement, contextOptions?: AudioContextOptions) {
+    el && (this.media = el);
+    this.audio = new AudioContextWithMethod(contextOptions);
+    this.audioCtx = this.audio.audioCtx;
     this.queue = new Map();
-    this.index = 1;
+    this.index = 0;
+    this.isStream = false;
+    this.isLife = true;
+  }
+
+  private checkLife() {
+    if (!this.isLife) throw new Error("該實例已釋放");
+  }
+
+  /**
+   * 添加至佇列
+   * @param type 濾波器類型
+   * @param hz 頻率
+   * @param Q 影響範圍
+   * @param gain 增益
+   * @param id 具體命名
+   */
+  addFilterToQueueByParam(
+    type: BiquadFilterType,
+    hz: number,
+    Q: number,
+    gain: number,
+    id?: string
+  ) {
+    this.checkLife();
+    const filter = this.audio[type]({ f: hz, q: Q, g: gain });
+    return this.addFilterToQueue(filter, id);
   }
 
   /**
    * 添加至佇列
    * @param filter 濾波器
-   * @param id 命名
+   * @param id 具體命名
    *
    * @returns Equalizer
    */
-  addToQueue(filter: BiquadFilterNode, id?: string) {
-    const indexstr = this.index.toString();
-    this.queue.set(typeof id === "string" ? id : indexstr, [filter, indexstr]);
+  addFilterToQueue(filter: BiquadFilterNode, id?: string) {
+    this.checkLife();
     this.index++;
+    const indexstr = this.index.toString();
+    this.queue.set(typeof id === "string" ? id : indexstr, filter);
+    if (this.index > 1) {
+      const prevFilter = this.queue.get(`${this.index - 1}`);
+      prevFilter && prevFilter.connect(filter);
+    }
     return this;
   }
 
   /**
    * 串接佇列上的濾波器，推薦串流前先暫停，結束後再播放。
    */
-  stream() {
-    this.source = this.audioCtx.createMediaElementSource(this.media);
-    let last: MediaElementAudioSourceNode | BiquadFilterNode = this.source;
-    this.queue.forEach(([filter]) => {
-      last.connect(filter);
-      last = filter;
+  stream(el: HTMLMediaElement = this.media) {
+    this.checkLife();
+    if (this.isStream || !el) {
+      return;
+    }
+    this.media = el;
+    this.isStream = true;
+    try {
+      this.source = this.audioCtx.createMediaElementSource(this.media);
+    } catch (e) {
+      this.source.disconnect();
+    } finally {
+      const first = this.firstNode;
+      if (first) {
+        this.source.connect(first);
+        this.lastNode.connect(this.audioCtx.destination);
+      }
+    }
+  }
+  /**
+   * 解除等化器
+   */
+  unstream() {
+    this.checkLife();
+    if (this.isStream) {
+      this.source.disconnect();
+      this.lastNode.disconnect();
+      this.source.connect(this.audioCtx.destination);
+      this.isStream = false;
+    }
+  }
+
+  /**
+   * 切換媒體元素時，釋放舊元素的等化器，請拋棄當前實例
+   */
+  freeMemory() {
+    this.checkLife();
+    this.isLife = false;
+    this.queue.forEach((node) => {
+      node.disconnect();
     });
-    last.connect(this.audioCtx.destination);
+    this.queue.clear();
+    try {
+      this.source.disconnect();
+    } catch (e) {}
+    try {
+      this.audioCtx.close();
+    } catch (e) {}
   }
 }
