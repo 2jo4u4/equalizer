@@ -183,22 +183,20 @@ export class AudioContextWithMethod {
  * const equalizer = new Equalizer();
  * equalizer.addFilterToQueue(equalizer.audio.peaking({ f: 32, q: 0.7, g: 1 }))
  * equalizer
- *     .addFilterToQueue(equalizer.audio.peaking({ f: 64, q: 0.7, g: 1 }), "example")
- *     .addFilterToQueue(equalizer.audio.peaking({ f: 128, q: 0.7, g: 1 }), "example2")
+ *     .addFilterToQueue(equalizer.audio.peaking({ f: 64, q: 0.7, g: 1 }))
+ *     .addFilterToQueue(equalizer.audio.peaking({ f: 128, q: 0.7, g: 1 }))
  *
  * // 自定義濾波器
- * equalizer.addFilterToQueueByParam('peaking', 4000, 0.7, 0, "example3");
+ * equalizer.addFilterToQueueByParam('peaking', 4000, 0.7, 0);
  *
  * // 添加完濾波器
  * equalizer.stream(document.createElement("video"))
  * ```
  */
 export class Equalizer {
-  /** 編號命名 */
-  index: number;
+  private index: number;
   audio: AudioContextWithMethod;
   audioCtx: AudioContext;
-  /** 可命名或自動添加序列引索 */
   queue: Map<string, BiquadFilterNode>;
   get firstNode() {
     if (this.index === 0) return null;
@@ -245,12 +243,11 @@ export class Equalizer {
     type: BiquadFilterType,
     hz: number,
     Q: number,
-    gain: number,
-    id?: string
+    gain: number
   ) {
     this.checkLife();
     const filter = this.audio[type]({ f: hz, q: Q, g: gain });
-    return this.addFilterToQueue(filter, id);
+    return this.addFilterToQueue(filter);
   }
 
   /**
@@ -260,15 +257,12 @@ export class Equalizer {
    *
    * @returns Equalizer
    */
-  addFilterToQueue(filter: BiquadFilterNode, id?: string) {
+  addFilterToQueue(filter: BiquadFilterNode) {
     this.checkLife();
+    const last = this.lastNode;
+    last && last.connect(filter);
     this.index++;
-    const indexstr = this.index.toString();
-    this.queue.set(typeof id === "string" ? id : indexstr, filter);
-    if (this.index > 1) {
-      const prevFilter = this.queue.get(`${this.index - 1}`);
-      prevFilter && prevFilter.connect(filter);
-    }
+    this.queue.set(this.index.toString(), filter);
     return this;
   }
 
